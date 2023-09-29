@@ -141,6 +141,8 @@ const Joi = require('joi')
 const { v4: uuidv4 } = require('uuid')
 const sendGrid = require('@sendgrid/mail')
 sendGrid.setApiKey(process.env.SENDGRID_API_KEY)
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 
 
 let customerStore = [
@@ -188,6 +190,7 @@ app.get('/', (req, res) => {
     })
 })
 
+//user signUp endpoint
 app.post('/register', (req, res) => {
 
     const {lastname, firstname, email, phone, password} = req.body
@@ -203,11 +206,11 @@ app.post('/register', (req, res) => {
     if(error !== undefined) {
         res.status(400).json({
             status: false,
-            message: error.detail[0].message
+            message: error.details[0].message
         })
         return
     }
-
+    //user input valiation from dataBase
     const isEmailOrPhoneAlreadyExist = customerStore.find(customer => customer.email === emall || customer.phone === phone)
     if(isEmailOrPhoneAlreadyExist){
         res.status(400).json({
@@ -238,6 +241,7 @@ app.post('/register', (req, res) => {
     }
     otpStore.push(tempOtp)
 
+    //query function 
     sendEmail(email, 'send OTP', `Dear esteem ${lastname}, your OTP is ${Otp}. kindly check your email` )
     
     res.status(201).json({
@@ -247,6 +251,7 @@ app.post('/register', (req, res) => {
     })
 })
 
+//check if user inpute the correct email and otp
 app.get('/verify/:email/:otp', (req, res) => {
     const {email, otp} = req.params
     if(!email || !otp){
@@ -255,12 +260,14 @@ app.get('/verify/:email/:otp', (req, res) => {
             message: 'Email or Otp required'
         })
     }
+
+    // check if email and otp input by the user exist in dataBase
     const customer = otpStore.find(data => data.otp === otp && data.email === email)
     if(!customer){
         res.status(400).json({
             status: false,
             message: 'Invalid OTP',
-            customer: customer
+            customer
         })
         return
     }
@@ -284,7 +291,7 @@ app.get('/verify/:email/:otp', (req, res) => {
     })
     
     customerStore = [...newCustomerStore]
-
+    sendEmail(email, 'Hi', `Dear esteem ${lastname}. We are happy to have you onboard. Let do some magik`)
     res.status(200).json({
         status: true,
         message: 'OTP verified successfully',
@@ -318,7 +325,7 @@ app.get('/resend-otp/:email', (req, res) => {
         id: uuidv4(),
         otp,
         email,
-        date: new Date()
+        dateCreated: new Date()
     }
 
     otpStore.push(tempOtp)
@@ -327,15 +334,16 @@ app.get('/resend-otp/:email', (req, res) => {
 
     sendEmail(email, 'Resend OTP', `Dear esteem ${lastname}, your new OTP is ${Otp}.`)
     
-    res.status(400).json({
+    res.status(200).json({
         status: true, 
         msg: 'Otp resent successfully'
     })
 })
 
-app.get('/customers', (req, res) => {
+//secure api/endpoint (Basic Auth.) using apiKey/userName/password (J-W-T: Json Web Token )
+app.get('/admin/customers', (req, res) => {
     const {apikey} = req.headers
-    if(!apikey || apikey !== process.env. API_KEY){
+    if(!apikey || apikey !== process.env.API_KEY){
         res.status(401).json({
             status: false,
             msg: 'Unathurized'
@@ -347,6 +355,8 @@ app.get('/customers', (req, res) => {
         data: customerStore
     })
 })
+
+// reusable function (D-R-Y) OR helper functions
 const sendEmail = (email, subject, text) => {
     const msg = {
         to: email,
@@ -361,9 +371,13 @@ const sendEmail = (email, subject, text) => {
         console.log('email sent successfully')
     })
     .catch((error) => {
-        console.log('an error occured')
+        const erroCheck = {
+            error
+        }
     })
 }
+
+//reusable function (D-R-Y) OR helper functions
 const generateOtp = () => {
     return Math.floor(10000 + Math.random() * 90000)
 }
